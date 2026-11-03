@@ -16,6 +16,7 @@ import jakarta.persistence.LockModeType;
 public interface AccountRepository extends JpaRepository<Account, Long>{
     List<Account> findByUserId(Long userId);
     Optional<Account> findByAccountNumber(String accountNumber);
+    List<Account> findByUserEmailOrderByIdAsc(String email);
     boolean existsByAccountNumber(String accountNumber);
     
     @Lock(LockModeType.PESSIMISTIC_WRITE)
