@@ -29,7 +29,7 @@ public class UserRoleService {
         }
         UserRole oldRole = target.getUserRole();
         if(oldRole != newRole){
-            target.setUserRole(newRole);
+            target.changeRole(newRole);
             log.info("Role changed: user id={} {} -> {}, by {}", target.getId(), oldRole, newRole, actorEmail);
         }
         return target;

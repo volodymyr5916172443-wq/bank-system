@@ -56,7 +56,7 @@ public class BankTransaction {
     @JoinColumn(name="initiated_by", nullable=false, updatable=false)
     private User initiatedBy;
 
-    @Column(name="idempotency_key", nullable=false, updatable=false, length=64)
+    @Column(name="idempotency_key", updatable=false, length=64)
     private String idempotencyKey;
 
     @CreationTimestamp
@@ -65,7 +65,7 @@ public class BankTransaction {
     
     protected BankTransaction(){}
 
-    public BankTransaction(Account from, Account to, BigDecimal amount, Currency currency, TransactionType type, User initiatedBy, String description, String idempotencyKey){
+    public BankTransaction(Account from, Account to, BigDecimal amount, Currency currency, TransactionType type, User initiatedBy, String description){
         this.fromAccount = from;
         this.toAccount = to;
         this.amount = amount;
@@ -73,19 +73,18 @@ public class BankTransaction {
         this.type = type;
         this.initiatedBy = initiatedBy;
         this.description = description;
-        this.idempotencyKey = idempotencyKey;
         this.status = TransactionStatus.SUCCESS;
     }
 
-    public static BankTransaction deposit(Account to, BigDecimal amount, User initiatedBy, String description, String idempotencyKey){
+    public static BankTransaction deposit(Account to, BigDecimal amount, User initiatedBy, String description){
         requirePositive(amount);
-        return new BankTransaction(null, to, amount, to.getCurrency(), TransactionType.DEPOSIT, initiatedBy, description, idempotencyKey);
+        return new BankTransaction(null, to, amount, to.getCurrency(), TransactionType.DEPOSIT, initiatedBy, description);
     }
-    public static BankTransaction withdrawal(Account from, BigDecimal amount, User initiatedBy, String description, String idempotencyKey){
+    public static BankTransaction withdrawal(Account from, BigDecimal amount, User initiatedBy, String description){
         requirePositive(amount);
-        return new BankTransaction(from, null, amount, from.getCurrency(), TransactionType.WITHDRAWAL, initiatedBy, description, idempotencyKey);
+        return new BankTransaction(from, null, amount, from.getCurrency(), TransactionType.WITHDRAWAL, initiatedBy, description);
     }
-    public static BankTransaction transaction(Account from, Account to, BigDecimal amount, Currency currency, TransactionType type, User initiatedBy, String description, String idempotencyKey){
+    public static BankTransaction transaction(Account from, Account to, BigDecimal amount,User initiatedBy, String description){
         requirePositive(amount);
         if(from == to){
             throw new IllegalArgumentException("You cannot transfer money to the same account.");
@@ -93,7 +92,7 @@ public class BankTransaction {
         if(from.getCurrency()!=to.getCurrency()){
             throw new IllegalArgumentException("Account currencies do not match");
         }
-        return new BankTransaction(from, to, amount, from.getCurrency(), TransactionType.TRANSFER, initiatedBy, description, idempotencyKey);
+        return new BankTransaction(from, to, amount, from.getCurrency(), TransactionType.TRANSFER, initiatedBy, description);
     }
     public static void requirePositive(BigDecimal amount){
         if(amount==null||amount.signum() <=0){
@@ -139,5 +138,8 @@ public class BankTransaction {
     }
     public Instant getCreatedAt(){
         return creatAd;
+    }
+    public void setIdempotencyKey(String idempotencyKey){
+        this.idempotencyKey = idempotencyKey;
     }
 }

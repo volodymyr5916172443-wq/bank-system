@@ -19,6 +19,9 @@ public interface AccountRepository extends JpaRepository<Account, Long>{
     List<Account> findByUserEmailOrderByIdAsc(String email);
     boolean existsByAccountNumber(String accountNumber);
     
+    @Query("select a.id from Account a where a.accountNumber=:number")
+    Optional<Long> findIdByAccountNumber(@Param("number") String number);
+    
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Account a where a.id in :ids order by a.id")
     List<Account> findAllByIdForUpdate(@Param("ids") Collection<Long> ids);
