@@ -50,7 +50,7 @@ public class TransactionController {
     }
     @GetMapping
     public List<TransactionView> history(@RequestParam("accountId") Long accountId, @RequestParam(value="page", defaultValue="0")int page, @RequestParam(value="size", defaultValue="20")int size, Authentication authentication){
-        return transactionService.history(authentication.getName(), accountId, size, size);
+        return transactionService.history(authentication.getName(), accountId, page, size);
     }
     public record DepositRequest(@NotNull String accountNumber, @NotNull @Positive BigDecimal amount, @Size(max=255) String description){}
     public record WithdrawRequest(@NotNull String accountNumber, @NotNull @Positive BigDecimal amount, @Size(max=255) String description){}

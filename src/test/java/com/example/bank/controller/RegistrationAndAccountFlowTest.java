@@ -10,13 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -28,6 +29,7 @@ import com.example.bank.entity.User;
 import com.example.bank.entity.UserRole;
 import com.example.bank.repository.AccountRepository;
 import com.example.bank.repository.UserRepository;
+import com.jayway.jsonpath.JsonPath;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -117,11 +119,65 @@ class RegistrationAndAccountFlowTest {
     }
 
     @Test
+    void loginReturnsTokenThatGivesAccess() throws Exception {
+        register("anna@test.com", PASSWORD).andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"Anna@Test.com\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresInSeconds").isNumber());
+
+        mockMvc.perform(get("/api/accounts").with(bearer("anna@test.com")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void wrongPasswordIsRejected() throws Exception {
         register("anna@test.com", PASSWORD).andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/accounts").with(httpBasic("anna@test.com", "wrong-password")))
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"anna@test.com\",\"password\":\"wrong-password\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").exists());
+    }
+
+    @Test
+    void unknownEmailIsRejectedWithSameAnswer() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"nobody@test.com\",\"password\":\"password123\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").value("Incorrect email or password"));
+    }
+
+    @Test
+    void malformedTokenIsRejected() throws Exception {
+        mockMvc.perform(get("/api/accounts").header("Authorization", "Bearer not-a-real-token"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void roleChangeTakesEffectWithoutNewLogin() throws Exception {
+        register("anna@test.com", PASSWORD).andExpect(status().isCreated());
+        RequestPostProcessor annaToken = bearer("anna@test.com");
+
+        mockMvc.perform(patch("/api/admin/users/999999999/role").with(annaToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isForbidden());
+
+        User anna = users.findByEmail("anna@test.com").orElseThrow();
+        anna.changeRole(UserRole.ADMIN);
+        users.saveAndFlush(anna);
+
+        mockMvc.perform(patch("/api/admin/users/999999999/role").with(annaToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -129,19 +185,20 @@ class RegistrationAndAccountFlowTest {
         register("anna@test.com", PASSWORD).andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/admin/users/1/role")
-                        .with(httpBasic("anna@test.com", PASSWORD))
+                        .with(bearer("anna@test.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"ADMIN\"}"))
                 .andExpect(status().isForbidden());
     }
 
+    
 
     @Test
     void authenticatedUserCreatesAccount() throws Exception {
         register("anna@test.com", PASSWORD).andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/accounts")
-                        .with(httpBasic("anna@test.com", PASSWORD))
+                        .with(bearer("anna@test.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currency\":\"USD\"}"))
                 .andExpect(status().isCreated())
@@ -164,10 +221,10 @@ class RegistrationAndAccountFlowTest {
         createAccount("anna@test.com", "EUR");
         createAccount("boris@test.com", "UAH");
 
-        mockMvc.perform(get("/api/accounts").with(httpBasic("anna@test.com", PASSWORD)))
+        mockMvc.perform(get("/api/accounts").with(bearer("anna@test.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)));
-        mockMvc.perform(get("/api/accounts").with(httpBasic("boris@test.com", PASSWORD)))
+        mockMvc.perform(get("/api/accounts").with(bearer("boris@test.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
     }
@@ -177,7 +234,7 @@ class RegistrationAndAccountFlowTest {
         register("anna@test.com", PASSWORD).andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/accounts")
-                        .with(httpBasic("anna@test.com", PASSWORD))
+                        .with(bearer("anna@test.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currency\":\"GBP\"}"))
                 .andExpect(status().isBadRequest());
@@ -188,13 +245,28 @@ class RegistrationAndAccountFlowTest {
         register("anna@test.com", PASSWORD).andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/accounts")
-                        .with(httpBasic("anna@test.com", PASSWORD))
+                        .with(bearer("anna@test.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.currency").exists());
     }
 
+  
+
+   
+    private RequestPostProcessor bearer(String email) throws Exception {
+        String body = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String token = JsonPath.read(body, "$.accessToken");
+        return request -> {
+            request.addHeader("Authorization", "Bearer " + token);
+            return request;
+        };
+    }
 
     private ResultActions register(String email, String password) throws Exception {
         return mockMvc.perform(post("/api/auth/register")
@@ -205,7 +277,7 @@ class RegistrationAndAccountFlowTest {
 
     private void createAccount(String email, String currency) throws Exception {
         mockMvc.perform(post("/api/accounts")
-                        .with(httpBasic(email, PASSWORD))
+                        .with(bearer(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currency\":\"" + currency + "\"}"))
                 .andExpect(status().isCreated());

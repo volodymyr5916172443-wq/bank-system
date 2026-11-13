@@ -164,7 +164,7 @@ public class TransactionService {
     }
     private Long requireAccountId(String accountNumber){
         if(accountNumber==null||accountNumber.isBlank()){
-            throw badRequest("");
+            throw badRequest("Account number not specified");
         }
         return accounts.findIdByAccountNumber(accountNumber.trim().toUpperCase(Locale.ROOT)).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Account not found:"+accountNumber));
     }

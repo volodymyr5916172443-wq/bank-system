@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.bank.entity.User;
 import com.example.bank.entity.UserRole;
 import com.example.bank.service.UserRoleService;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @RestController
 @RequestMapping("/api/admin/users") 
@@ -26,6 +27,6 @@ public class AdminUserController {
         User update = userRoleService.changeRole(id, request.userRole(), authentication.getName());
         return new UserRoleResponse(update.getId(), update.getEmail(), update.getUserRole());
     }
-    public record ChangeRoleRequest(UserRole userRole){}
+    public record ChangeRoleRequest(@JsonProperty("role")UserRole userRole){}
     public record UserRoleResponse(Long id, String email, UserRole userRole){}
 }

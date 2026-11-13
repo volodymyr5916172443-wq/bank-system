@@ -14,3 +14,13 @@ spring:
 
 server:
   port: 0
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret}
+    expiration-minutes: 60
+
+  admin:
+    email: ${ADMIN_EMAIL:admin@gmail.com}
+    password: ${ADMIN_PASSWORD:Admin12345}
+    full-name: Administrator
